@@ -33,3 +33,11 @@ Python, Pandas, Scikit-learn, Streamlit, FastAPI, Twilio
 ## Status
 
 Fresh-start project. I am building this project step by step from the ground up.
+
+## Data Source
+
+The initial restaurant intent dataset comes from the Kaggle dataset **AI Restaurant Calling Agent** by `shanza30
+
+Dataset: https://www.kaggle.com/datasets/shanza30/ai-caller-agent
+
+I use this dataset as a learning/reference dataset and build my own preprocessing, modeling, evaluation, and deployment workflow.
