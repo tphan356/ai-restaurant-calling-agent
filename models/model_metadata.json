@@ -1,0 +1,19 @@
+{
+    "intents": [
+        "cancel",
+        "complaint",
+        "greeting",
+        "order",
+        "query",
+        "reservation"
+    ],
+    "confidence_threshold": 0.6,
+    "responses": {
+        "order": "Great! I can help you place an order. What would you like to order?",
+        "reservation": "Sure! How many people and what time would you like to reserve?",
+        "query": "Of course! What would you like to know about our restaurant?",
+        "greeting": "Hello! Thanks for calling. How can I help you today?",
+        "cancel": "I can help with that. Can you confirm your order or reservation details?",
+        "complaint": "I'm sorry to hear that. Let me help you with this issue."
+    }
+}
