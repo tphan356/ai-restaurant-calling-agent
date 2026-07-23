@@ -41,3 +41,14 @@ The initial restaurant intent dataset comes from the Kaggle dataset **AI Restaur
 Dataset: https://www.kaggle.com/datasets/shanza30/ai-caller-agent
 
 I use this dataset as a learning/reference dataset and build my own preprocessing, modeling, evaluation, and deployment workflow.
+
+## How to Run the Steamlit App
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+Then run the app by using: 
+```bash
+streamlit run src/app.py
+```
