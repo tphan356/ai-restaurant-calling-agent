@@ -7,11 +7,17 @@ import streamlit as st
 from agent_logic import create_empty_state, update_conversation
 
 
+# -----------------------------
+# File paths
+# -----------------------------
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODEL_PATH = PROJECT_ROOT / "models" / "restaurant_intent_model.pkl"
 METADATA_PATH = PROJECT_ROOT / "models" / "model_metadata.json"
 
 
+# -----------------------------
+# Load model and metadata
+# -----------------------------
 @st.cache_resource
 def load_model():
     with open(MODEL_PATH, "rb") as f:
@@ -23,13 +29,112 @@ def load_model():
     return model, metadata
 
 
-def predict_intent(text, model, metadata):
+# -----------------------------
+# Rule-based guardrail
+# -----------------------------
+def rule_based_intent(text):
+    text_lower = text.lower()
+
+    reservation_keywords = [
+        "reservation",
+        "reserve",
+        "book a table",
+        "book table",
+        "table for",
+        "make a booking",
+        "booking",
+    ]
+
+    order_keywords = [
+        "order",
+        "takeout",
+        "take out",
+        "to go",
+        "burger",
+        "pizza",
+        "food",
+        "drink",
+    ]
+
+    cancel_keywords = [
+        "cancel",
+        "cancellation",
+        "remove my booking",
+        "change my booking",
+    ]
+
+    complaint_keywords = [
+        "complaint",
+        "complain",
+        "cold",
+        "wrong",
+        "bad service",
+        "rude",
+        "late",
+        "refund",
+    ]
+
+    query_keywords = [
+        "hours",
+        "close",
+        "open",
+        "menu",
+        "location",
+        "address",
+        "parking",
+        "delivery",
+    ]
+
+    if any(keyword in text_lower for keyword in reservation_keywords):
+        return "reservation"
+
+    if any(keyword in text_lower for keyword in order_keywords):
+        return "order"
+
+    if any(keyword in text_lower for keyword in cancel_keywords):
+        return "cancel"
+
+    if any(keyword in text_lower for keyword in complaint_keywords):
+        return "complaint"
+
+    if any(keyword in text_lower for keyword in query_keywords):
+        return "query"
+
+    return None
+
+
+# -----------------------------
+# Model prediction
+# -----------------------------
+def predict_intent(text, model, metadata, conversation_state):
     prediction = model.predict([text])[0]
     confidence = model.predict_proba([text]).max()
 
-    threshold = metadata["confidence_threshold"]
-    responses = metadata["responses"]
+    threshold = metadata.get("confidence_threshold", 0.60)
+    responses = metadata.get("responses", {})
 
+    rule_intent = rule_based_intent(text)
+    active_intent = conversation_state.get("active_intent")
+
+    # If we are already collecting details for an intent,
+    # keep the conversation in that flow instead of clarifying.
+    if active_intent is not None:
+        return {
+            "intent": active_intent,
+            "confidence": confidence,
+            "response": responses.get(active_intent, "How can I help you today?"),
+        }
+
+    # If model confidence is low but the text has clear keywords,
+    # use the rule-based intent instead of forcing clarify.
+    if confidence < threshold and rule_intent is not None:
+        return {
+            "intent": rule_intent,
+            "confidence": confidence,
+            "response": responses.get(rule_intent, "How can I help you today?"),
+        }
+
+    # If confidence is low and no rule helps, ask the customer to clarify.
     if confidence < threshold:
         return {
             "intent": "clarify",
@@ -47,6 +152,9 @@ def predict_intent(text, model, metadata):
     }
 
 
+# -----------------------------
+# Streamlit page setup
+# -----------------------------
 st.set_page_config(
     page_title="AI Restaurant Calling Agent",
     page_icon="🍽️",
@@ -56,6 +164,10 @@ st.set_page_config(
 st.title("🍽️ AI Restaurant Calling Agent")
 st.caption("Multi-turn restaurant phone-call simulation using NLP intent classification")
 
+
+# -----------------------------
+# Initialize app
+# -----------------------------
 model, metadata = load_model()
 
 if "messages" not in st.session_state:
@@ -72,11 +184,18 @@ if "conversation_state" not in st.session_state:
     st.session_state.conversation_state = create_empty_state()
 
 
+# -----------------------------
+# Sidebar
+# -----------------------------
 with st.sidebar:
     st.header("Project Info")
     st.write("**Model:** TF-IDF + Logistic Regression")
     st.write("**Task:** Restaurant intent classification")
-    st.write(f"**Confidence threshold:** {metadata['confidence_threshold']:.0%}")
+    st.write(f"**Confidence threshold:** {metadata.get('confidence_threshold', 0.60):.0%}")
+
+    st.subheader("Supported Intents")
+    for intent in metadata.get("intents", []):
+        st.write(f"- {intent}")
 
     st.subheader("Conversation State")
     st.json(st.session_state.conversation_state)
@@ -86,6 +205,12 @@ with st.sidebar:
     st.code("For two people")
     st.code("Tomorrow")
     st.code("At 7 pm")
+
+    st.subheader("Other examples")
+    st.code("I want to order two burgers")
+    st.code("What time do you close?")
+    st.code("I want to cancel my reservation")
+    st.code("The food was cold")
 
     if st.button("Reset Conversation"):
         st.session_state.messages = [
@@ -100,6 +225,9 @@ with st.sidebar:
         st.rerun()
 
 
+# -----------------------------
+# Display conversation
+# -----------------------------
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
@@ -111,6 +239,9 @@ for message in st.session_state.messages:
             )
 
 
+# -----------------------------
+# User input
+# -----------------------------
 user_input = st.chat_input("Type what the customer says...")
 
 if user_input:
@@ -123,7 +254,12 @@ if user_input:
         }
     )
 
-    model_result = predict_intent(user_input, model, metadata)
+    model_result = predict_intent(
+        user_input,
+        model,
+        metadata,
+        st.session_state.conversation_state,
+    )
 
     st.session_state.conversation_state, agent_response = update_conversation(
         user_input,
