@@ -51,7 +51,7 @@ def extract_party_size(text):
 
     return None
 
-# date
+# Date
 def extract_date(text):
     text_lower = text.lower()
 
@@ -81,11 +81,61 @@ def extract_time(text):
     return None
 
 
+# Add order items
 def extract_order_items(text):
-    text_lower = text.lower()
+    text_lower = text.lower().strip()
 
-    order_keywords = ["order", "get", "want", "have"]
-    if any(word in text_lower for word in order_keywords):
+    # Order phrases
+    generic_order_phrases = [
+        "i want to order",
+        "i would like to order",
+        "can i order",
+        "i need to order",
+        "place an order",
+        "i want takeout",
+        "i want to get food",
+    ]
+
+    if text_lower in generic_order_phrases:
+        return None
+
+    # Common phrases
+    order_starters = [
+        "i want to order",
+        "i would like to order",
+        "can i order",
+        "i need to order",
+        "i want",
+        "can i get",
+        "let me get",
+        "i'll have",
+    ]
+
+    for starter in order_starters:
+        if text_lower.startswith(starter):
+            item = text_lower.replace(starter, "").strip()
+            if item:
+                return item
+            
+    # Food in the menu
+    food_keywords = [
+        "burger",
+        "pizza",
+        "coke",
+        "drink",
+        "fries",
+        "salad",
+        "sandwich",
+        "coffee",
+        "tea",
+        "noodles",
+        "rice",
+        "chicken",
+        "beef",
+        "pasta",
+    ]
+
+    if any(food in text_lower for food in food_keywords):
         return text
 
     return None
@@ -136,16 +186,37 @@ def handle_order(text, state):
 
     order_items = extract_order_items(text)
 
+    # If the user is already in the order flow, treat the next message as the item.
+    if state.get("active_intent") == "order" and not order_items:
+        order_items = text
+
     if order_items:
         slots["order_items"] = order_items
         state["active_intent"] = None
-        return state, "Got it. I can help place that order. Would you like anything else?"
+        return (
+            state,
+            f"Got it. I added {order_items} to your order. "
+            "Would you like anything else?"
+        )
 
     state["active_intent"] = "order"
     return state, "Sure, what would you like to order?"
 
 
+
 def handle_cancel(text, state):
+    text_lower = text.lower()
+
+    if "reservation" in text_lower or "booking" in text_lower or "table" in text_lower:
+        state["slots"]["cancel_type"] = "reservation"
+        state["active_intent"] = None
+        return state, "I can help cancel your reservation. Can you confirm the name on the booking?"
+
+    if "order" in text_lower or "takeout" in text_lower:
+        state["slots"]["cancel_type"] = "order"
+        state["active_intent"] = None
+        return state, "I can help cancel your order. Can you confirm your order number?"
+
     state["active_intent"] = "cancel"
     return state, "I can help cancel that. Is this for an order or a reservation?"
 
