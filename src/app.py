@@ -4,8 +4,9 @@ from pathlib import Path
 
 import streamlit as st
 
+from agent_logic import create_empty_state, update_conversation
 
-# Project paths
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODEL_PATH = PROJECT_ROOT / "models" / "restaurant_intent_model.pkl"
 METADATA_PATH = PROJECT_ROOT / "models" / "model_metadata.json"
@@ -36,61 +37,107 @@ def predict_intent(text, model, metadata):
             "response": (
                 "I'm not fully sure I understood. Are you asking about an order, "
                 "reservation, restaurant information, cancellation, or complaint?"
-            )
+            ),
         }
 
     return {
         "intent": prediction,
         "confidence": confidence,
-        "response": responses.get(prediction, "How can I help you today?")
+        "response": responses.get(prediction, "How can I help you today?"),
     }
 
 
 st.set_page_config(
     page_title="AI Restaurant Calling Agent",
     page_icon="🍽️",
-    layout="centered"
+    layout="centered",
 )
 
 st.title("🍽️ AI Restaurant Calling Agent")
-st.write(
-    "This app simulates a restaurant phone assistant. "
-    "Type a customer message and the model will predict the intent."
-)
+st.caption("Multi-turn restaurant phone-call simulation using NLP intent classification")
 
 model, metadata = load_model()
 
-st.subheader("Customer Message")
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {
+            "role": "assistant",
+            "content": "Thanks for calling our restaurant. How can I help you today?",
+            "intent": None,
+            "confidence": None,
+        }
+    ]
 
-user_input = st.text_area(
-    "Enter what the customer says:",
-    placeholder="Example: Hi, can I reserve a table for two tonight?"
-)
+if "conversation_state" not in st.session_state:
+    st.session_state.conversation_state = create_empty_state()
 
-if st.button("Predict Intent"):
-    if user_input.strip() == "":
-        st.warning("Please enter a customer message.")
-    else:
-        result = predict_intent(user_input, model, metadata)
 
-        st.subheader("Prediction Result")
-        st.write(f"**Intent:** {result['intent']}")
-        st.write(f"**Confidence:** {result['confidence']:.2%}")
+with st.sidebar:
+    st.header("Project Info")
+    st.write("**Model:** TF-IDF + Logistic Regression")
+    st.write("**Task:** Restaurant intent classification")
+    st.write(f"**Confidence threshold:** {metadata['confidence_threshold']:.0%}")
 
-        st.subheader("Agent Response")
-        st.success(result["response"])
+    st.subheader("Conversation State")
+    st.json(st.session_state.conversation_state)
 
-st.divider()
+    st.subheader("Try a reservation flow")
+    st.code("I want to make a reservation")
+    st.code("For two people")
+    st.code("Tomorrow")
+    st.code("At 7 pm")
 
-st.subheader("Try These Examples")
+    if st.button("Reset Conversation"):
+        st.session_state.messages = [
+            {
+                "role": "assistant",
+                "content": "Thanks for calling our restaurant. How can I help you today?",
+                "intent": None,
+                "confidence": None,
+            }
+        ]
+        st.session_state.conversation_state = create_empty_state()
+        st.rerun()
 
-examples = [
-    "Hi, can I order two burgers?",
-    "Can I reserve a table for four tonight?",
-    "What time do you close?",
-    "I want to cancel my reservation.",
-    "The food was cold and the service was bad."
-]
 
-for example in examples:
-    st.code(example)
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.write(message["content"])
+
+        if message["intent"] is not None:
+            st.caption(
+                f"Detected intent: **{message['intent']}** | "
+                f"Confidence: **{message['confidence']:.2%}**"
+            )
+
+
+user_input = st.chat_input("Type what the customer says...")
+
+if user_input:
+    st.session_state.messages.append(
+        {
+            "role": "user",
+            "content": user_input,
+            "intent": None,
+            "confidence": None,
+        }
+    )
+
+    model_result = predict_intent(user_input, model, metadata)
+
+    st.session_state.conversation_state, agent_response = update_conversation(
+        user_input,
+        model_result,
+        st.session_state.conversation_state,
+    )
+
+    st.session_state.messages.append(
+        {
+            "role": "assistant",
+            "content": agent_response,
+            "intent": model_result["intent"],
+            "confidence": model_result["confidence"],
+        }
+    )
+
+    st.rerun()
