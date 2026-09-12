@@ -42,6 +42,12 @@ Dataset: https://www.kaggle.com/datasets/shanza30/ai-caller-agent
 
 I use this dataset as a learning/reference dataset and build my own preprocessing, modeling, evaluation, and deployment workflow.
 
+## Streamlit Demo
+
+The project includes a simple Streamlit chat interface that simulates a restaurant phone-call assistant.
+
+![Streamlit Demo](assets/streamlit_demo.png)
+
 ## How to Run the Steamlit App
 Install dependencies:
 
